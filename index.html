@@ -5212,6 +5212,18 @@ function applyNotepadAction(room) {
                 }
 
                 setTimeout(() => {
+                    const oldKey = `${tx},${tx === 3 ? escapeState.slideY3 : escapeState.slideY5}`;
+                    const newKey = `${tx},${nextY}`;
+
+                    const rotVal = escapeState.tileRots[oldKey];
+                    const visRotVal = escapeState.tileVisualRots[oldKey];
+
+                    if (rotVal !== undefined) delete escapeState.tileRots[oldKey];
+                    if (visRotVal !== undefined) delete escapeState.tileVisualRots[oldKey];
+
+                    if (rotVal !== undefined) escapeState.tileRots[newKey] = rotVal;
+                    if (visRotVal !== undefined) escapeState.tileVisualRots[newKey] = visRotVal;
+
                     if (tx === 3) {
                         escapeState.slideY3 = nextY;
                     } else if (tx === 5) {
