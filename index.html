@@ -268,7 +268,9 @@ button {
 
 .main-card {
     padding: 18px;
-    min-height: 640px
+    min-height: 640px;
+    display: flex;
+    flex-direction: column;
 }
 
 .side-col {
@@ -368,8 +370,8 @@ button {
 .logbox {
     display: grid;
     gap: 8px;
-    max-height: 360px;
-    overflow: auto
+    height: 180px;
+    overflow-y: auto
 }
 
 .log-item {
@@ -2681,10 +2683,13 @@ button {
 
 /* 하단 버튼 2개 */
 .notepad-actions {
-    display: grid;
-    grid-template-columns: 1.3fr 0.7fr;
+    display: flex;
+    flex-direction: column;
     gap: 8px;
     margin-top: 4px;
+}
+.notepad-actions .notepad-btn {
+    width: 100%;
 }
 
 .notepad-btn {
@@ -2728,7 +2733,7 @@ button {
 /* Antigravity: UI Layout Fixes, Dark Theme, and Animation Transitions */
 .parking-board, .road-board {
     width: 100% !important;
-    max-width: 740px !important; /* Enlarged further to utilize left space */
+    max-width: 800px !important; /* Enlarged further to utilize left space */
     aspect-ratio: 1 / 1 !important;
     margin: 0 auto !important;
     box-sizing: border-box !important;
@@ -2746,6 +2751,11 @@ button {
     width: 100% !important;
     max-width: 100% !important; /* Fill left column entirely */
     margin: 0 auto !important;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 12px;
 }
 
 /* Notebook Dark Theme Overrides */
@@ -3331,6 +3341,15 @@ function renderMenu() {
 function setSlide(id) {
     if( !appState.unlocked[id]) return;
     appState.current=id;
+
+    // 새롭게 퍼즐을 시작할 때마다 맵이 랜덤 생성되도록 자동 리셋 처리
+    if (id === 'parking' && appState.counts.parking === 0) {
+        resetParking();
+    }
+    if (id === 'road' && appState.counts.road === 0) {
+        resetRoad();
+    }
+
     document.querySelectorAll(".slide").forEach(slide=>slide.classList.remove("active"));
     document.getElementById(id).classList.add("active");
     renderMenu();
@@ -3375,6 +3394,7 @@ function addLog(id, text) {
             d.textContent=`${i+1}. ${log}`;
             box.appendChild(d);
         });
+    box.scrollTop = box.scrollHeight;
 }
 
 function resetLogBox(id) {
@@ -3625,6 +3645,12 @@ function resetRoad() {
         "7,4": { type: "finish", rot:0, visualRot:1, fixed:true, icon:"DEST", name:"도착점" }
     };
 
+    for (let key in roadTiles) {
+        if (!roadTiles[key].fixed) {
+            roadTiles[key].rot = Math.floor(Math.random() * 4);
+        }
+    }
+
     roadDecor= {
         "0,0": "🌲", "7,7": "⭐", "2,0": "🧱", "0,7": "🚦"
     };
@@ -3641,6 +3667,11 @@ function resetRoad() {
 
 function renderRoad() {
     const board=document.getElementById("roadBoard");
+    if (!board) return;
+    const currentHeight = board.clientHeight;
+    if (currentHeight > 0) {
+        board.style.minHeight = currentHeight + 'px';
+    }
     board.innerHTML="";
 
     for(let y=0; y<8; y++) {
@@ -3692,6 +3723,10 @@ function renderRoad() {
     token.classList.remove("show");
     if( !appState.logs.road.length) resetLogBox("road");
     setTimeout(mountLottieAndIcons, 0);
+
+    requestAnimationFrame(() => {
+        board.style.minHeight = "";
+    });
 }
 
 function selectRoadTile(key, cell) {
@@ -3864,16 +3899,37 @@ let cars=[],
 selectedCar="T",
 parkingSolved=false;
 
-let parkingWalls = [
-    "1,1", "1,2", "1,3", "1,5", "1,6", "1,7", "1,8",
-    "2,1", "2,8",
-    "3,3", "3,4", "3,5", "3,6",
-    "4,1", "4,8",
-    "5,1", "5,3", "5,4", "5,5", "5,6", "5,8",
-    "6,1", "6,8",
-    "7,3", "7,4", "7,5", "7,6",
-    "8,1", "8,2", "8,3", "8,5", "8,6", "8,7", "8,8"
+const parkingWallSets = [
+    // 세트 A: 기본 맵 (2칸짜리 짧은 벽들의 정렬, 중앙 직진 개척)
+    [
+        "1,1", "2,1", "3,1", "5,1", "6,1", "7,1",
+        "1,8", "2,8", "3,8", "5,8", "6,8", "7,8",
+        "2,3", "2,4",
+        "4,4", "4,5",
+        "6,3", "6,4",
+        "8,4", "8,5"
+    ],
+    // 세트 B: 변형 맵 B (3칸짜리 벽 지그재그 개척)
+    [
+        "1,1", "2,1", "3,1", "5,1", "6,1", "7,1",
+        "1,8", "2,8", "3,8", "5,8", "6,8", "7,8",
+        "2,2", "2,3", "2,4",
+        "4,4", "4,5", "4,6",
+        "6,2", "6,3", "6,4",
+        "8,4", "8,5", "8,6"
+    ],
+    // 세트 C: 변형 맵 C (외곽 완벽 차단 및 2칸짜리 장벽 정렬)
+    [
+        "1,1", "2,1", "3,1", "4,1", "5,1", "6,1", "7,1", "8,1",
+        "1,8", "2,8", "3,8", "4,8", "5,8", "6,8", "7,8", "8,8",
+        "2,4", "2,5",
+        "4,3", "4,4",
+        "6,4", "6,5",
+        "8,3", "8,4"
+    ]
 ];
+
+let parkingWalls = [];
 
 function resetParking() {
     appState.counts.parking=0;
@@ -3881,6 +3937,9 @@ function resetParking() {
     resetLogBox("parking");
     parkingSolved=false;
     selectedCar="T";
+
+    const randIdx = Math.floor(Math.random() * parkingWallSets.length);
+    parkingWalls = parkingWallSets[randIdx];
 
     cars=[ {
         id: "T", name:"목표 트럭", x:0, y:4, len:1, dir:"H", cls:"targetCar", label:""
@@ -3902,6 +3961,11 @@ return arr;
 
 function renderParking() {
     const board=document.getElementById("parkingBoard");
+    if (!board) return;
+    const currentHeight = board.clientHeight;
+    if (currentHeight > 0) {
+        board.style.minHeight = currentHeight + 'px';
+    }
     board.innerHTML='';
 
     for(let y=0; y<10; y++) {
@@ -3951,6 +4015,10 @@ function renderParking() {
             board.appendChild(el);
         });
     setTimeout(mountLottieAndIcons, 0);
+
+    requestAnimationFrame(() => {
+        board.style.minHeight = "";
+    });
 }
 
 function selectParkingCar(id) {
@@ -4264,7 +4332,6 @@ function resetEscape() {
             "6,4": 1,
             "6,3": 3
         },
-        slideY3: 1, // Column 3 sliding road: y = 1 or 2. Connected at 2.
         slideY5: 2, // Column 5 sliding road: y = 2, 3, or 4. Connected at 4.
         solved: false,
         signs: [
@@ -4297,6 +4364,11 @@ function escapeSignsSolved() {
 
 function renderEscape() {
     const map=document.getElementById("escapeMap");
+    if (!map) return;
+    const currentHeight = map.clientHeight;
+    if (currentHeight > 0) {
+        map.style.minHeight = currentHeight + 'px';
+    }
     map.innerHTML="";
 
     for(let y=0; y<6; y++) {
@@ -4370,6 +4442,10 @@ function renderEscape() {
     map.appendChild(truck);
     renderEscapeSigns();
     setTimeout(mountLottieAndIcons, 0);
+
+    requestAnimationFrame(() => {
+        map.style.minHeight = "";
+    });
 }
 
 function selectEscapeSign(idx, cell) {
@@ -4516,24 +4592,42 @@ function flipEscapeSign(idx) {
     renderEscapeSigns();
 }
 
+function getNormalizedRot(rot, base) {
+    if (rot === undefined) return 0;
+    return ((rot % base) + base) % base;
+}
+
 function checkEscapeAuto() {
     const rots = escapeState.tileRots;
-    const ok1_3 = (rots["1,3"] % 2) === 0;
-    const ok2_3 = (rots["2,3"] % 4) === 3;
-    const ok2_2 = (rots["2,2"] % 4) === 1;
-    const ok3_2 = (rots["3,2"] % 2) === 0;
-    const ok4_2 = (rots["4,2"] % 4) === 2;
-    const ok4_3 = (rots["4,3"] % 2) === 1;
-    const ok4_4 = (rots["4,4"] % 4) === 0;
-    const ok6_4 = (rots["6,4"] % 4) === 3;
-    const ok6_3 = (rots["6,3"] % 4) === 1;
+    const ok1_3 = getNormalizedRot(rots["1,3"], 2) === 1;
+    const ok2_3 = getNormalizedRot(rots["2,3"], 4) === 3;
+    const ok2_2 = getNormalizedRot(rots["2,2"], 4) === 1;
+    const ok3_2 = getNormalizedRot(rots["3,2"], 2) === 1;
+    const ok4_2 = getNormalizedRot(rots["4,2"], 4) === 2;
+    const ok4_3 = getNormalizedRot(rots["4,3"], 2) === 0;
+    const ok4_4 = getNormalizedRot(rots["4,4"], 4) === 0;
+    const ok6_4 = getNormalizedRot(rots["6,4"], 4) === 3;
+    const ok6_3 = getNormalizedRot(rots["6,3"], 4) === 1;
     
-    // 움직이는 도로 B(5,4 위치)가 가로 방향(0 또는 180도)인지 확인
-    const ok5_4 = rots["5,4"] !== undefined && (rots["5,4"] % 2) === 0;
+    // 움직이는 도로 B(5,4 위치)가 가로 방향(90 또는 270도)인지 확인
+    const ok5_4 = getNormalizedRot(rots["5,4"] || 0, 2) === 1;
 
     const okRoad = ok1_3 && ok2_3 && ok2_2 && ok3_2 && ok4_2 && ok4_3 && ok4_4 && ok6_4 && ok6_3 && ok5_4;
-    const okMove = escapeState.slideY3 === 2 && escapeState.slideY5 === 4;
+    const okMove = escapeState.slideY5 === 4;
     const okSigns = escapeSignsSolved();
+
+    console.log("=== ESCAPE AUTO CHECK ===");
+    console.log("ok1_3(1,3):", ok1_3, "val:", rots["1,3"]);
+    console.log("ok2_3(2,3):", ok2_3, "val:", rots["2,3"]);
+    console.log("ok2_2(2,2):", ok2_2, "val:", rots["2,2"]);
+    console.log("ok3_2(3,2):", ok3_2, "val:", rots["3,2"]);
+    console.log("ok4_2(4,2):", ok4_2, "val:", rots["4,2"]);
+    console.log("ok4_3(4,3):", ok4_3, "val:", rots["4,3"]);
+    console.log("ok4_4(4,4):", ok4_4, "val:", rots["4,4"]);
+    console.log("ok5_4(5,4):", ok5_4, "val:", rots["5,4"]);
+    console.log("ok6_4(6,4):", ok6_4, "val:", rots["6,4"]);
+    console.log("ok6_3(6,3):", ok6_3, "val:", rots["6,3"]);
+    console.log("okRoad:", okRoad, "okMove(slideY5===4):", okMove, "val:", escapeState.slideY5, "okSigns:", okSigns);
 
     if (okRoad && okMove && okSigns) {
         startEscape();
@@ -4729,9 +4823,6 @@ function tiles_local_check(key) {
         return { type: "sign", name: sign.name, idx: 2, key: sign.key, flipX: sign.flipX, flipY: sign.flipY, targetFlipX: sign.targetFlipX, targetFlipY: sign.targetFlipY };
     }
 
-    if (key === `3,${escapeState.slideY3}`) {
-        return { type: "straight", rot: 0, action: "slide", name: "움직이는 도로 A" };
-    }
     if (key === `5,${escapeState.slideY5}`) {
         const curRot = escapeState.tileRots[key] || 0;
         const curVisRot = escapeState.tileVisualRots[key] !== undefined ? escapeState.tileVisualRots[key] : curRot;
@@ -4778,14 +4869,7 @@ function renderNotepad(room) {
                 }
             } else {
                 const tx = parseInt(state.selectedTarget.split(',')[0], 10);
-                if (tx === 3) {
-                    isSlideDisabled = false;
-                    isFlipDisabled = true;
-                    isRotateDisabled = true;
-                    if (state.action !== 'slide') {
-                         state.action = 'slide';
-                    }
-                } else if (tx === 5) {
+                if (tx === 5) {
                     // 움직이는 도로 B는 밀기와 돌리기가 모두 가능합니다.
                     isSlideDisabled = false;
                     isFlipDisabled = true;
@@ -5140,12 +5224,7 @@ function applyNotepadAction(room) {
         } else {
             // Road tile in Room 4: Rotate or Slide
             const [tx, ty] = target.split(',').map(Number);
-
             if (state.action === 'rotate') {
-                if (tx === 3) {
-                    setStatus("escapeStatus", "움직이는 도로 A는 회전할 수 없습니다. (밀기만 가능합니다)", "warn");
-                    return;
-                }
                 const count = state.rotateAngle / 90;
                 const signVal = state.rotateClockwise ? 1 : -1;
                 const finalDelta = count * signVal;
@@ -5175,7 +5254,7 @@ function applyNotepadAction(room) {
                 }, 400);
 
             } else if (state.action === 'slide') {
-                if (tx !== 3 && tx !== 5) {
+                if (tx !== 5) {
                     setStatus("escapeStatus", "이 도로는 밀 수 없습니다. (돌리기만 가능합니다)", "warn");
                     return;
                 }
@@ -5189,10 +5268,7 @@ function applyNotepadAction(room) {
                 let nextY = 0;
                 let minY = 0, maxY = 0;
                 
-                if (tx === 3) {
-                    minY = 1; maxY = 2;
-                    nextY = escapeState.slideY3 + signVal * amt;
-                } else if (tx === 5) {
+                if (tx === 5) {
                     minY = 2; maxY = 4;
                     nextY = escapeState.slideY5 + signVal * amt;
                 }
@@ -5212,7 +5288,7 @@ function applyNotepadAction(room) {
                 }
 
                 setTimeout(() => {
-                    const oldKey = `${tx},${tx === 3 ? escapeState.slideY3 : escapeState.slideY5}`;
+                    const oldKey = `${tx},${escapeState.slideY5}`;
                     const newKey = `${tx},${nextY}`;
 
                     const rotVal = escapeState.tileRots[oldKey];
@@ -5224,9 +5300,7 @@ function applyNotepadAction(room) {
                     if (rotVal !== undefined) escapeState.tileRots[newKey] = rotVal;
                     if (visRotVal !== undefined) escapeState.tileVisualRots[newKey] = visRotVal;
 
-                    if (tx === 3) {
-                        escapeState.slideY3 = nextY;
-                    } else if (tx === 5) {
+                    if (tx === 5) {
                         escapeState.slideY5 = nextY;
                     }
 
